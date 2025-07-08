@@ -28,12 +28,14 @@ impl Node for Statement {
 #[derive(Debug, PartialEq)]
 pub enum Expression {
     Identifier(Identifier),
+    IntegerLiteral(IntegerLiteral),
 }
 
 impl Node for Expression {
     fn token_literal(&self) -> String {
         match self {
             Expression::Identifier(i) => i.token.token_literal(),
+            Expression::IntegerLiteral(il) => il.token.token_literal(), 
         }
     }
 }
@@ -73,4 +75,10 @@ pub struct LetStatement {
 pub struct Identifier {
     pub token: Token, // The `Token::Ident` token
     pub value: String,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct IntegerLiteral {
+    pub token: Token, // The Token::Int token
+    pub value: i64,
 }

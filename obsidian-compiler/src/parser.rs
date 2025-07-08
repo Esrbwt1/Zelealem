@@ -1,12 +1,16 @@
-use crate::ast::{Identifier, LetStatement, Program, Statement, Expression}; // Updated imports
+use crate::ast::{Identifier, IntegerLiteral, LetStatement, Program, Statement, Expression};
 use crate::lexer::Lexer;
 use crate::token::Token;
+
+// A type alias for our parsing functions for clarity.
+type PrefixParseFn = fn(&mut Parser) -> Option<Expression>;
+// We will add infix functions (like for `+`) later.
 
 pub struct Parser {
     lexer: Lexer,
     cur_token: Token,
     peek_token: Token,
-    errors: Vec<String>, // A list of parsing errors
+    errors: Vec<String>,
 }
 
 impl Parser {
@@ -20,7 +24,7 @@ impl Parser {
             errors: Vec::new(),
         }
     }
-    
+
     pub fn errors(&self) -> &Vec<String> {
         &self.errors
     }
@@ -31,6 +35,7 @@ impl Parser {
     }
 
     pub fn parse_program(&mut self) -> Program {
+        // ... this function is unchanged ...
         let mut program = Program {
             statements: Vec::new(),
         };
@@ -48,42 +53,38 @@ impl Parser {
     fn parse_statement(&mut self) -> Option<Statement> {
         match self.cur_token {
             Token::Let => self.parse_let_statement().map(Statement::Let),
-            _ => None,
+            _ => None, // Will be replaced by ExpressionStatement later
         }
     }
-    
-    // This is the new, complete implementation.
-    fn parse_let_statement(&mut self) -> Option<LetStatement> {
-        let let_token = self.cur_token.clone(); // `let` token
 
-        // We expect an identifier next, e.g., `let x ...`
-        if !self.expect_peek(Token::Ident("".to_string())) { // The content doesn't matter, just the type
+    fn parse_let_statement(&mut self) -> Option<LetStatement> {
+        let let_token = self.cur_token.clone();
+
+        if !self.expect_peek(Token::Ident("".to_string())) {
             return None;
         }
 
         let name = Identifier {
-            token: self.cur_token.clone(), // The identifier token
+            token: self.cur_token.clone(),
             value: match &self.cur_token {
                 Token::Ident(s) => s.clone(),
-                _ => return None, // Should not happen due to expect_peek
+                _ => return None,
             },
         };
 
-        // After the identifier, we expect an equals sign, e.g., `let x = ...`
         if !self.expect_peek(Token::Assign) {
             return None;
         }
         
-        // TODO: For now, we are skipping the expression until we implement expression parsing.
-        while self.cur_token != Token::Semicolon {
+        self.next_token(); // Move to the expression token
+
+        // THIS IS THE UPGRADED PART
+        // We now call a generic expression parser instead of skipping.
+        let value = self.parse_expression().unwrap(); // For now, we unwrap
+
+        if self.peek_token_is(&Token::Semicolon) {
             self.next_token();
         }
-        
-        // Placeholder expression
-        let value = Expression::Identifier(Identifier {
-            token: Token::Ident("DUMMY".to_string()),
-            value: "DUMMY".to_string(),
-        });
 
         Some(LetStatement {
             token: let_token,
@@ -91,19 +92,59 @@ impl Parser {
             value,
         })
     }
+    
+    // --- NEW EXPRESSION PARSING LOGIC ---
+    
+    fn parse_expression(&mut self) -> Option<Expression> {
+        // This is the core of our expression parser. It looks at the current
+        // token and calls the appropriate parsing function.
+        let prefix_fn = self.get_prefix_fn(&self.cur_token);
 
-    // Helper function to check if the next token is what we expect.
+        prefix_fn.map(|f| f(self)).flatten()
+    }
+    
+    // Returns the function needed to parse an expression based on the token type.
+    fn get_prefix_fn(&self, token: &Token) -> Option<PrefixParseFn> {
+        match token {
+            Token::Ident(_) => Some(Self::parse_identifier),
+            Token::Int(_) => Some(Self::parse_integer_literal),
+            _ => None,
+        }
+    }
+    
+    // The parsing function for identifiers.
+    fn parse_identifier(parser: &mut Parser) -> Option<Expression> {
+        let token = parser.cur_token.clone();
+        let value = match &token {
+            Token::Ident(s) => s.clone(),
+            _ => return None,
+        };
+        Some(Expression::Identifier(Identifier { token, value }))
+    }
+
+    // The parsing function for integer literals.
+    fn parse_integer_literal(parser: &mut Parser) -> Option<Expression> {
+        let token = parser.cur_token.clone();
+        let value = match token {
+            Token::Int(v) => v,
+            _ => {
+                parser.errors.push(format!("could not parse {:?} as integer", token));
+                return None;
+            }
+        };
+        Some(Expression::IntegerLiteral(IntegerLiteral { token, value }))
+    }
+    
+    // --- HELPER FUNCTIONS (mostly unchanged) ---
+    
     fn cur_token_is(&self, t: &Token) -> bool {
         std::mem::discriminant(&self.cur_token) == std::mem::discriminant(t)
     }
 
-    // Helper function to check if the "peek" token is what we expect.
     fn peek_token_is(&self, t: &Token) -> bool {
         std::mem::discriminant(&self.peek_token) == std::mem::discriminant(t)
     }
-    
-    // An assertion function that advances the tokens only if the peek token
-    // is of the correct type. This is a core pattern in parsing.
+
     fn expect_peek(&mut self, t: Token) -> bool {
         if self.peek_token_is(&t) {
             self.next_token();
@@ -113,8 +154,7 @@ impl Parser {
             false
         }
     }
-    
-    // Adds an error to our list when we encounter an unexpected token.
+
     fn peek_error(&mut self, t: Token) {
         let msg = format!(
             "expected next token to be {:?}, got {:?} instead",
