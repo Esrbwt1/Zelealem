@@ -1,7 +1,7 @@
 use crate::ast::{Identifier, IntegerLiteral, LetStatement, Program, Statement, Expression};
 use crate::lexer::Lexer;
 use crate::token::Token;
-
+use crate::ast::PrefixExpression;
 // A type alias for our parsing functions for clarity.
 type PrefixParseFn = fn(&mut Parser) -> Option<Expression>;
 // We will add infix functions (like for `+`) later.
@@ -105,12 +105,13 @@ impl Parser {
     
     // Returns the function needed to parse an expression based on the token type.
     fn get_prefix_fn(&self, token: &Token) -> Option<PrefixParseFn> {
-        match token {
-            Token::Ident(_) => Some(Self::parse_identifier),
-            Token::Int(_) => Some(Self::parse_integer_literal),
-            _ => None,
-        }
+    match token {
+        Token::Ident(_) => Some(Self::parse_identifier),
+        Token::Int(_) => Some(Self::parse_integer_literal),
+        Token::Bang | Token::Minus => Some(Self::parse_prefix_expression), // Add this line
+        _ => None,
     }
+}
     
     // The parsing function for identifiers.
     fn parse_identifier(parser: &mut Parser) -> Option<Expression> {
@@ -161,5 +162,26 @@ impl Parser {
             t, self.peek_token
         );
         self.errors.push(msg);
+    }
+
+        // A parsing function for prefix expressions like `-5` or `!foo`.
+    fn parse_prefix_expression(parser: &mut Parser) -> Option<Expression> {
+        let token = parser.cur_token.clone();
+        let operator = match &token {
+            Token::Bang => "!".to_string(),
+            Token::Minus => "-".to_string(),
+            _ => return None, // Should be unreachable
+        };
+
+        parser.next_token(); // Move past the operator
+
+        // Recursively call parse_expression to parse the expression on the right.
+        let right = parser.parse_expression()?;
+
+        Some(Expression::Prefix(PrefixExpression {
+            token,
+            operator,
+            right: Box::new(right),
+        }))
     }
 }

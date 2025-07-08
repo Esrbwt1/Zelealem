@@ -29,6 +29,7 @@ impl Node for Statement {
 pub enum Expression {
     Identifier(Identifier),
     IntegerLiteral(IntegerLiteral),
+    Prefix(PrefixExpression),
 }
 
 impl Node for Expression {
@@ -36,6 +37,7 @@ impl Node for Expression {
         match self {
             Expression::Identifier(i) => i.token.token_literal(),
             Expression::IntegerLiteral(il) => il.token.token_literal(), 
+            Expression::Prefix(p) => p.token.token_literal(),
         }
     }
 }
@@ -81,4 +83,13 @@ pub struct Identifier {
 pub struct IntegerLiteral {
     pub token: Token, // The Token::Int token
     pub value: i64,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct PrefixExpression {
+    pub token: Token, // The prefix token, e.g., `!` or `-`
+    pub operator: String,
+    // Box<Expression> allows us to have a recursive type.
+    // An expression can contain another expression.
+    pub right: Box<Expression>,
 }
