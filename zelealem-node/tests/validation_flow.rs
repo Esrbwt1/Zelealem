@@ -95,56 +95,50 @@ fn test_invalid_signature_flow() {
     println!("SUCCESS: Transaction with invalid signature was correctly rejected.");
 }
 
-#[test]
-fn test_node_processes_valid_block() {
+// CORRECTED: Mark the test as a tokio async test.
+#[tokio::test]
+async fn test_node_processes_valid_block() { // CORRECTED: Add the async keyword
     // === 1. SETUP: A new world with a Node ===
-    let mut node = Node::new();
+    // CORRECTED: We must .await the async constructor.
+    let mut node = Node::new().await;
 
     // Create a user, "Alice", with a keypair.
     let (alice_pub_key, alice_sec_key) = crypto::generate_keypair();
 
     // Create an initial asset for Alice and add it DIRECTLY to the node's state.
-    // In a real system, this would have been the result of a previous block.
     let initial_so = StateObject::new(alice_pub_key, vec![100], vec![]);
     let initial_so_id = initial_so.id;
     node.state_db.add_so(initial_so).unwrap();
 
     // === 2. A BLOCK IS CREATED BY A PROPOSER ===
     // Alice creates a transaction to spend her asset and create a new one.
-    let new_so = StateObject::new(alice_pub_key, vec![50], vec![]); // A new asset for 50 tokens
+    let new_so = StateObject::new(alice_pub_key, vec![50], vec![]);
     let new_so_id = new_so.id;
 
     let mut tx = Transaction::new(
-        vec![initial_so_id],    // Consume the original asset
-        vec![new_so],           // Create the new one
+        vec![initial_so_id],
+        vec![new_so],
         vec![],
     );
     let signature = sign_data(&tx.id, &alice_sec_key);
     tx.sign(signature);
 
-    // A block proposer (can be anyone for now, let's say Alice) creates a new block.
     let latest_hash = node.chain.get_latest_hash();
     let new_block = Block::new(
-        latest_hash,        // The block is linked to the previous one
-        alice_pub_key,      // Alice is the proposer
-        vec![tx],           // It contains Alice's transaction
-        vec![],             // No VDF proof for now
+        latest_hash,
+        alice_pub_key,
+        vec![tx],
+        vec![],
     );
 
     // === 3. THE NODE PROCESSES THE BLOCK ===
-    // Our node receives this new block from the network.
     let result = node.process_block(new_block);
 
-    // We assert that the block processing was successful.
     assert!(result.is_ok());
     println!("SUCCESS: Node successfully processed a valid block.");
 
     // === 4. VERIFY THE FINAL STATE ===
-    // The node's state should now be updated.
-    // The old asset should be gone.
     assert!(node.state_db.get_so(&initial_so_id).is_err());
-    // The new asset should exist.
     assert!(node.state_db.get_so(&new_so_id).is_ok());
-    // The chain should have grown by one block.
     assert_ne!(node.chain.get_latest_hash(), latest_hash);
 }
