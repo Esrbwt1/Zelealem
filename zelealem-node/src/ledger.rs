@@ -34,7 +34,7 @@ struct HashableTransaction<'a> {
 }
 
 // State Objects (SOs) are the fundamental components of the ledger.
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct StateObject {
     pub id: Hash,
     pub owner: PublicKey,

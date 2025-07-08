@@ -14,7 +14,7 @@ pub enum StateError {
 
 // StateDB is our in-memory key-value store for State Objects.
 // The key is the StateObject's unique Hash (ID), and the value is the SO itself.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct StateDB {
     objects: HashMap<Hash, StateObject>,
 }
