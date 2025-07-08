@@ -5,3 +5,4 @@ pub mod validator;
 pub mod chain;
 pub mod node;
 pub mod p2p;
+pub mod consensus;
