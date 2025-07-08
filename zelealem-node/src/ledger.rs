@@ -6,6 +6,17 @@ use serde_big_array::BigArray;
 use bincode::serde::encode_to_vec;
 use bincode::config::standard;
 
+
+// At the top of ledger.rs
+#[derive(Serialize)]
+struct HashableBlock<'a> {
+    proposer: &'a PublicKey,
+    transactions: &'a Vec<Transaction>,
+    vdf_proof: &'a Vec<u8>,
+    // IMPORTANT: A block's hash must also depend on the previous block's hash.
+    previous_hash: &'a Hash,
+}
+
 // A temporary struct used only for the purpose of hashing a State Object.
 #[derive(Serialize)]
 struct HashableStateObject<'a> {
@@ -102,7 +113,37 @@ impl Transaction {
 #[derive(Serialize)]
 pub struct Block {
     pub id: Hash,
+    pub previous_hash: Hash, // Link to the previous block
     pub proposer: PublicKey,
     pub transactions: Vec<Transaction>,
     pub vdf_proof: Vec<u8>,
+}
+
+impl Block {
+    // Constructor for a new Block.
+    pub fn new(
+        previous_hash: Hash,
+        proposer: PublicKey,
+        transactions: Vec<Transaction>,
+        vdf_proof: Vec<u8>,
+    ) -> Self {
+        let hashable_part = HashableBlock {
+            previous_hash: &previous_hash,
+            proposer: &proposer,
+            transactions: &transactions,
+            vdf_proof: &vdf_proof,
+        };
+        let bytes =
+            bincode::serde::encode_to_vec(&hashable_part, bincode::config::standard())
+                .expect("Failed to serialize Block");
+        let id = crate::crypto::hash_data(&bytes);
+
+        Self {
+            id,
+            previous_hash,
+            proposer,
+            transactions,
+            vdf_proof,
+        }
+    }
 }
