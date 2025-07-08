@@ -8,3 +8,5 @@ pub mod p2p;
 pub mod consensus;
 pub mod mempool;
 pub mod topics;
+pub mod bytecode;
+pub mod zvm;
