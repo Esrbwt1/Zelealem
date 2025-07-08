@@ -2,6 +2,9 @@
 use zelealem_node::node::Node;
 use zelealem_node::consensus::Validator;
 use zelealem_node::ledger::Block;
+use zelealem_node::ledger::Transaction; 
+use zelealem_node::topics; // New
+use zelealem_node::validator::TransactionValidator; // New
 use std::time::Duration;
 use tokio::time::interval;
 
@@ -44,6 +47,9 @@ async fn main() {
     let topic = gossipsub::IdentTopic::new("zelealem-blocks");
     node.swarm.behaviour_mut().gossipsub.subscribe(&topic).unwrap();
 
+    let transactions_topic = topics::transactions_topic();
+    node.swarm.behaviour_mut().gossipsub.subscribe(&transactions_topic).unwrap();
+
     // Create a timer that fires every 10 seconds.
     let mut proposer_tick = interval(Duration::from_secs(10));
 
@@ -64,11 +70,17 @@ async fn main() {
                         
                         // In a real node, we would collect transactions from a mempool.
                         // For now, we create an empty block.
+                        // Pull a batch of transactions from the mempool.
+                        let transactions = node.mempool.get_batch(10); // Get up to 10 txs
+                        if !transactions.is_empty() {
+                            println!("Pulled {} transactions from mempool to include in new block.", transactions.len());
+                        }
+
                         let new_block = Block::new(
                             latest_hash,
                             local_pub_key,
-                            vec![], // No transactions yet
-                            vec![], // No VDF proof yet
+                            transactions, // Add the transactions to the block
+                            vec![],       // No VDF proof for now
                         );
                         let block_id_for_log = new_block.id; // Clone for logging before move
 
@@ -124,7 +136,36 @@ async fn main() {
                                 }
                             }
                             zelealem_node::p2p::ZelealemBehaviourEvent::Gossipsub(gossip_event) => {
-                                println!("Received gossipsub event: {:?}", gossip_event);
+                                if let gossipsub::Event::Message { message, .. } = gossip_event {
+                                    // Check which topic the message arrived on.
+                                    if message.topic == topics::blocks_topic().hash() {
+                                        // TODO: Handle incoming blocks from other nodes
+                                        println!("Received new block via gossipsub.");
+                                    } else if message.topic == topics::transactions_topic().hash() {
+                                        println!("Received new transaction via gossipsub.");
+                                        // Try to deserialize the message data into a Transaction.
+                                        match bincode::serde::decode_from_slice::<Transaction, _>(&message.data, bincode::config::standard()) {
+                                            Ok((tx, _)) => {
+                                                println!("Successfully deserialized transaction: {:?}", tx.id);
+                                                // Validate the transaction against our current state.
+                                                let validator = TransactionValidator::new(&node.state_db);
+                                                match validator.validate_transaction(&tx) {
+                                                    Ok(_) => {
+                                                        println!("Transaction is valid! Adding to mempool.");
+                                                        // If valid, add it to our mempool.
+                                                        node.mempool.add_transaction(tx);
+                                                    }
+                                                    Err(e) => {
+                                                        println!("Invalid transaction received: {:?}", e);
+                                                    }
+                                                }
+                                            }
+                                            Err(e) => {
+                                                println!("Failed to deserialize transaction: {:?}", e);
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

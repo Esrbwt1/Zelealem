@@ -1,6 +1,7 @@
 use crate::crypto::{Hash, PublicKey, Signature};
 use serde::Serialize;
 use serde_big_array::BigArray;
+use serde::Deserialize;
 
 // This is the correct function to use when using serde::Serialize with bincode 2.x
 use bincode::serde::encode_to_vec;
@@ -34,7 +35,7 @@ struct HashableTransaction<'a> {
 }
 
 // State Objects (SOs) are the fundamental components of the ledger.
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct StateObject {
     pub id: Hash,
     pub owner: PublicKey,
@@ -63,14 +64,14 @@ impl StateObject {
 }
 
 // A Causal Link allows one transaction to reference the logic of another State Object.
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CausalLink {
     pub source_so_id: Hash,
     pub target_so_id: Hash,
 }
 
 // A transaction consumes and creates State Objects.
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Transaction {
     pub id: Hash,
     pub inputs: Vec<Hash>,
@@ -110,7 +111,7 @@ impl Transaction {
 }
 
 // A Block is a collection of transactions.
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Block {
     pub id: Hash,
     pub previous_hash: Hash, // Link to the previous block

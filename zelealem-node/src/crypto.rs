@@ -1,11 +1,12 @@
 use ring::{digest, rand::{self, SecureRandom}};
 use serde::Serialize; // Added for PublicKey serialization
+use serde::Deserialize;
 
 pub type Hash = [u8; 32];
 pub type Signature = [u8; 64];
 
 // CORRECTED: PublicKey is now a struct that can derive traits.
-#[derive(Serialize, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
+#[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
 pub struct PublicKey(pub [u8; 32]);
 
 pub fn hash_data(data: &[u8]) -> Hash {
