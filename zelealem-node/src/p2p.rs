@@ -1,17 +1,35 @@
-use libp2p::{
-    gossipsub, mdns, swarm::NetworkBehaviour
-};
+use libp2p::{gossipsub, mdns, ping, swarm::NetworkBehaviour}; // Add ping
 
-// This is the core networking logic of a Zelealem node.
-// It defines the protocols a node speaks and the events it can produce.
-// We are deriving a trait that automatically generates the necessary boilerplate.
 #[derive(NetworkBehaviour)]
+#[behaviour(to_swarm = "ZelealemBehaviourEvent")] // We need to specify the event type
 pub struct ZelealemBehaviour {
-    // Gossipsub is the protocol for broadcasting ("gossiping") messages
-    // like transactions and new blocks to all interested peers.
     pub gossipsub: gossipsub::Behaviour,
-
-    // mDNS is a local network discovery protocol. It allows nodes on the
-    // same local network to find each other without a central server.
     pub mdns: mdns::tokio::Behaviour,
+    pub ping: ping::Behaviour, // Add the ping protocol
+}
+
+// Define the custom event our behaviour can emit
+#[derive(Debug)]
+pub enum ZelealemBehaviourEvent {
+    Mdns(mdns::Event),
+    Gossipsub(gossipsub::Event),
+    Ping(ping::Event),
+}
+
+impl From<mdns::Event> for ZelealemBehaviourEvent {
+    fn from(event: mdns::Event) -> Self {
+        ZelealemBehaviourEvent::Mdns(event)
+    }
+}
+
+impl From<gossipsub::Event> for ZelealemBehaviourEvent {
+    fn from(event: gossipsub::Event) -> Self {
+        ZelealemBehaviourEvent::Gossipsub(event)
+    }
+}
+
+impl From<ping::Event> for ZelealemBehaviourEvent {
+    fn from(event: ping::Event) -> Self {
+        ZelealemBehaviourEvent::Ping(event)
+    }
 }

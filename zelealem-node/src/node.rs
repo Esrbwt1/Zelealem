@@ -4,6 +4,7 @@ use crate::state_db::StateDB;
 use crate::validator::{TransactionValidator, ValidationError};
 use thiserror::Error;
 use crate::mempool::Mempool;
+use libp2p::ping;
 
 use crate::p2p::ZelealemBehaviour;
 use libp2p::{
@@ -44,10 +45,8 @@ impl Node {
                 message.data.hash(&mut s);
                 gossipsub::MessageId::from(s.finish().to_string())
             };
-            let gossipsub_config = gossipsub::ConfigBuilder::default()
-                .message_id_fn(message_id_fn)
-                .build()
-                .expect("Valid gossipsub config");
+            let gossipsub_config = gossipsub::ConfigBuilder::default().build().expect("Valid gossipsub config");
+
             let gossipsub = gossipsub::Behaviour::new(
                 gossipsub::MessageAuthenticity::Signed(id_keys.clone()),
                 gossipsub_config,
@@ -55,8 +54,8 @@ impl Node {
             .expect("Correct gossipsub");
 
             let mdns = mdns::tokio::Behaviour::new(mdns::Config::default(), peer_id).unwrap();
-
-            ZelealemBehaviour { gossipsub, mdns }
+            let ping = ping::Behaviour::new(ping::Config::new());
+            ZelealemBehaviour { gossipsub, mdns, ping }
         };
         
         // CORRECTED: Swarm is built directly in the async context.

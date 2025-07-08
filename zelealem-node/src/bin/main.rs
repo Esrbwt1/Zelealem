@@ -167,6 +167,10 @@ async fn main() {
                                     }
                                 }
                             }
+                            // inside the SwarmEvent::Behaviour match
+                            zelealem_node::p2p::ZelealemBehaviourEvent::Ping(event) => {
+                                println!("Received ping event: {:?}", event);
+                            }
                         }
                     }
                     _ => {}
