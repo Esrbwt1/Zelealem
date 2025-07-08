@@ -1,5 +1,9 @@
 // We need to use the zelealem_node library we've built.
 use zelealem_node::node::Node;
+use zelealem_node::consensus::Validator;
+use zelealem_node::ledger::Block;
+use std::time::Duration;
+use tokio::time::interval;
 
 // Import libp2p components needed for the main loop.
 use libp2p::{
@@ -15,48 +19,82 @@ use libp2p::futures::StreamExt;
 async fn main() {
     println!("Zelealem Node - Initializing...");
 
-    // 1. Create a new Node. This also initializes the network swarm.
     let mut node = Node::new().await;
 
-    // 2. Set up network listening addresses.
-    // Listen on all interfaces on a specific port.
-    // The OS will assign a specific IP address (e.g., 192.168.1.10).
+    // --- Manually set up a validator for testing ---
+    // In a real system, this would come from staking transactions.
+    // For now, we'll make our own node a validator.
+    // To get our specific PublicKey type, we must hash the public part of the id_keys.
+    // Get the PeerId from the node's swarm, which is the canonical public identity.
+    let local_peer_id = *node.swarm.local_peer_id();
+    // Convert the PeerId to bytes to create a hashable representation for our consensus.
+    let local_pub_key = zelealem_node::crypto::PublicKey(zelealem_node::crypto::hash_data(&local_peer_id.to_bytes()));
+    let validator = Validator {
+        pub_key: local_pub_key,
+        stake: 1000, // Stake 1000 units
+    };
+    node.validator_set.add_validator(validator);
+    println!("Local node registered as a validator.");
+    // ---------------------------------------------
+
     node.swarm
         .listen_on("/ip4/0.0.0.0/tcp/0".parse().unwrap())
         .unwrap();
 
-    // Create a specific topic for our blockchain data.
     let topic = gossipsub::IdentTopic::new("zelealem-blocks");
     node.swarm.behaviour_mut().gossipsub.subscribe(&topic).unwrap();
 
+    // Create a timer that fires every 10 seconds.
+    let mut proposer_tick = interval(Duration::from_secs(10));
 
-    println!("Node initialized. Listening for connections...");
+    println!("Node initialized. Listening for connections and proposing blocks...");
 
-    // 3. The Main Event Loop
-    // This loop is the heart of the node's execution. It continuously
-    // checks for events from the network swarm and acts on them.
     loop {
-        // `select!` is a Tokio macro that waits on multiple async operations
-        // and executes the block for the one that completes first.
         select! {
+            // This branch fires every 10 seconds.
+            _ = proposer_tick.tick() => {
+                println!("\n--- Proposer Tick ---");
+
+                // Check if we are the chosen proposer for the current chain height.
+                let latest_hash = node.chain.get_latest_hash();
+                if let Some(chosen_proposer) = node.validator_set.select_proposer(latest_hash) {
+                    println!("Chosen proposer for this round: {:?}", chosen_proposer);
+                    if chosen_proposer == local_pub_key {
+                        println!("It's our turn to propose a block!");
+                        // Create a new, empty block.
+                        let new_block = Block::new(
+                            latest_hash,
+                            local_pub_key,
+                            vec![], // No transactions for now
+                            vec![], // No VDF proof for now
+                        );
+                        println!("Created new block with ID: {:?}", new_block.id);
+
+                        // TODO: Broadcast this block to the network via gossipsub.
+                        // TODO: Process this block locally.
+
+                    }
+                }
+            }
+
             event = node.swarm.select_next_some() => {
+                // (This part is unchanged)
                 match event {
                     SwarmEvent::NewListenAddr { address, .. } => {
                         println!("Node listening on: {}", address);
                     }
                     SwarmEvent::Behaviour(p2p_event) => {
-                        // Handle events from our custom ZelealemBehaviour
                         match p2p_event {
                             zelealem_node::p2p::ZelealemBehaviourEvent::Mdns(mdns_event) => {
                                 match mdns_event {
                                     mdns::Event::Discovered(list) => {
-                                        for (peer_id, multiaddr) in list {
+                                        for (peer_id, _multiaddr) in list {
                                             println!("mDNS discovered a new peer: {}", peer_id);
                                             node.swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
                                         }
                                     },
                                     mdns::Event::Expired(list) => {
-                                        for (peer_id, multiaddr) in list {
+                                        for (peer_id, _multiaddr) in list {
                                             println!("mDNS peer has expired: {}", peer_id);
                                             node.swarm.behaviour_mut().gossipsub.remove_explicit_peer(&peer_id);
                                         }
@@ -64,16 +102,11 @@ async fn main() {
                                 }
                             }
                             zelealem_node::p2p::ZelealemBehaviourEvent::Gossipsub(gossip_event) => {
-                                // For now, we just print gossip events.
-                                // In the future, this is where we would receive new blocks and transactions.
                                 println!("Received gossipsub event: {:?}", gossip_event);
                             }
                         }
                     }
-                    _ => {
-                        // Handle other swarm events (connections opened, closed, etc.)
-                        // println!("Unhandled swarm event: {:?}", event);
-                    }
+                    _ => {}
                 }
             }
         }

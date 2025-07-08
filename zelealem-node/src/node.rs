@@ -27,6 +27,7 @@ pub struct Node {
     pub swarm: Swarm<ZelealemBehaviour>,
     pub runtime: Runtime,
     pub validator_set: ValidatorSet,
+    pub id_keys: identity::Keypair,
 }
 
 impl Node {
@@ -56,12 +57,11 @@ impl Node {
             ZelealemBehaviour { gossipsub, mdns }
         };
         
-        // CORRECTED: The original `runtime` variable was out of scope.
         // We create it here and use it directly.
         let runtime = Runtime::new().unwrap();
         let swarm = {
             runtime.block_on(async {
-                SwarmBuilder::with_existing_identity(id_keys)
+                SwarmBuilder::with_existing_identity(id_keys.clone())
                     .with_tokio()
                     .with_tcp(
                         tcp::Config::default(),
@@ -82,6 +82,7 @@ impl Node {
             swarm,
             runtime,
             validator_set: ValidatorSet::new(),
+            id_keys,
         }
     }
     
