@@ -32,4 +32,8 @@ impl Chain {
     pub fn add_block(&mut self, block: Block) {
         self.blocks.push(block);
     }
+
+    pub fn get_latest_block(&self) -> Option<&Block> {
+        self.blocks.last()
+    }
 }

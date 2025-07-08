@@ -59,20 +59,42 @@ async fn main() {
                 let latest_hash = node.chain.get_latest_hash();
                 if let Some(chosen_proposer) = node.validator_set.select_proposer(latest_hash) {
                     println!("Chosen proposer for this round: {:?}", chosen_proposer);
-                    if chosen_proposer == local_pub_key {
+                                        if chosen_proposer == local_pub_key {
                         println!("It's our turn to propose a block!");
-                        // Create a new, empty block.
+                        
+                        // In a real node, we would collect transactions from a mempool.
+                        // For now, we create an empty block.
                         let new_block = Block::new(
                             latest_hash,
                             local_pub_key,
-                            vec![], // No transactions for now
-                            vec![], // No VDF proof for now
+                            vec![], // No transactions yet
+                            vec![], // No VDF proof yet
                         );
-                        println!("Created new block with ID: {:?}", new_block.id);
+                        let block_id_for_log = new_block.id; // Clone for logging before move
 
-                        // TODO: Broadcast this block to the network via gossipsub.
-                        // TODO: Process this block locally.
+                        // 1. Process the new block locally.
+                        // This updates our own chain and state database.
+                        match node.process_block(new_block) {
+                            Ok(_) => {
+                                println!("Successfully processed our own new block: {:?}", block_id_for_log);
+                                
+                                // 2. Broadcast the block to the network.
+                                // We need to serialize the block to send it.
+                                // The block was moved into process_block, so we need to get it back.
+                                let last_block = node.chain.get_latest_block().unwrap();
+                                let serialized_block = bincode::serde::encode_to_vec(last_block, bincode::config::standard()).unwrap();
 
+                                if let Err(e) = node.swarm.behaviour_mut().gossipsub.publish(topic.clone(), serialized_block) {
+                                    println!("Error publishing block: {:?}", e);
+                                } else {
+                                    println!("Successfully published new block to the network!");
+                                }
+                            }
+                            Err(e) => {
+                                // This should not happen if we create the block correctly.
+                                println!("Error processing our own block: {:?}", e);
+                            }
+                        }
                     }
                 }
             }

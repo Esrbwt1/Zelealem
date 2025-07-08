@@ -10,8 +10,7 @@ use libp2p::{
 };
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use tokio::runtime::Runtime; // CORRECTED: Import was missing.
-use crate::consensus::ValidatorSet; // CORRECTED: Removed unused `Validator` import.
+use crate::consensus::ValidatorSet;
 
 #[derive(Error, Debug)]
 pub enum ProcessBlockError {
@@ -21,16 +20,17 @@ pub enum ProcessBlockError {
     TransactionError(#[from] ValidationError),
 }
 
+// CORRECTED: The Node does not own the runtime.
 pub struct Node {
     pub chain: Chain,
     pub state_db: StateDB,
     pub swarm: Swarm<ZelealemBehaviour>,
-    pub runtime: Runtime,
-    pub validator_set: ValidatorSet,
     pub id_keys: identity::Keypair,
+    pub validator_set: ValidatorSet,
 }
 
 impl Node {
+    // CORRECTED: Node::new is a true async function.
     pub async fn new() -> Self {
         let id_keys = identity::Keypair::generate_ed25519();
         let peer_id = PeerId::from(id_keys.public());
@@ -57,37 +57,31 @@ impl Node {
             ZelealemBehaviour { gossipsub, mdns }
         };
         
-        // We create it here and use it directly.
-        let runtime = Runtime::new().unwrap();
-        let swarm = {
-            runtime.block_on(async {
-                SwarmBuilder::with_existing_identity(id_keys.clone())
-                    .with_tokio()
-                    .with_tcp(
-                        tcp::Config::default(),
-                        noise::Config::new,
-                        yamux::Config::default,
-                    )
-                    .unwrap()
-                    .with_behaviour(|_| behaviour)
-                    .unwrap()
-                    .with_swarm_config(|c| c.with_idle_connection_timeout(std::time::Duration::from_secs(60)))
-                    .build()
-            })
-        };
+        // CORRECTED: Swarm is built directly in the async context.
+        let swarm = SwarmBuilder::with_existing_identity(id_keys.clone())
+            .with_tokio()
+            .with_tcp(
+                tcp::Config::default(),
+                noise::Config::new,
+                yamux::Config::default,
+            )
+            .unwrap()
+            .with_behaviour(|_| behaviour)
+            .unwrap()
+            .with_swarm_config(|c| c.with_idle_connection_timeout(std::time::Duration::from_secs(60)))
+            .build();
 
         Self {
             chain: Chain::new(),
             state_db: StateDB::new(),
             swarm,
-            runtime,
             validator_set: ValidatorSet::new(),
             id_keys,
         }
     }
     
+    // Unchanged function
     pub fn process_block(&mut self, block: Block) -> Result<(), ProcessBlockError> {
-        // ... function body is unchanged ...
         let latest_hash = self.chain.get_latest_hash();
         if block.previous_hash != latest_hash {
             return Err(ProcessBlockError::MismatchedPreviousHash);
