@@ -34,7 +34,7 @@ struct HashableTransaction<'a> {
 }
 
 // State Objects (SOs) are the fundamental components of the ledger.
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 pub struct StateObject {
     pub id: Hash,
     pub owner: PublicKey,
@@ -63,14 +63,14 @@ impl StateObject {
 }
 
 // A Causal Link allows one transaction to reference the logic of another State Object.
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct CausalLink {
     pub source_so_id: Hash,
     pub target_so_id: Hash,
 }
 
 // A transaction consumes and creates State Objects.
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct Transaction {
     pub id: Hash,
     pub inputs: Vec<Hash>,
@@ -110,7 +110,7 @@ impl Transaction {
 }
 
 // A Block is a collection of transactions.
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct Block {
     pub id: Hash,
     pub previous_hash: Hash, // Link to the previous block

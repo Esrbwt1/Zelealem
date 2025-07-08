@@ -3,6 +3,7 @@ use crate::ledger::Block;
 use crate::state_db::StateDB;
 use crate::validator::{TransactionValidator, ValidationError};
 use thiserror::Error;
+use crate::mempool::Mempool;
 
 use crate::p2p::ZelealemBehaviour;
 use libp2p::{
@@ -27,6 +28,7 @@ pub struct Node {
     pub swarm: Swarm<ZelealemBehaviour>,
     pub id_keys: identity::Keypair,
     pub validator_set: ValidatorSet,
+    pub mempool: Mempool,
 }
 
 impl Node {
@@ -76,6 +78,7 @@ impl Node {
             state_db: StateDB::new(),
             swarm,
             validator_set: ValidatorSet::new(),
+            mempool: Mempool::new(),
             id_keys,
         }
     }

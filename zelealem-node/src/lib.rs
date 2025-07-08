@@ -6,3 +6,5 @@ pub mod chain;
 pub mod node;
 pub mod p2p;
 pub mod consensus;
+pub mod mempool;
+pub mod topics;
