@@ -29,3 +29,12 @@ pub enum Token {
     Function,
     Let,
 }
+
+impl Token {
+    pub fn token_literal(&self) -> String {
+        match self {
+            Token::Ident(s) => s.clone(),
+            _ => format!("{:?}", self), // Default representation for others
+        }
+    }
+}
